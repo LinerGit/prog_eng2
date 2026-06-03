@@ -12,15 +12,34 @@
             "outputPath": "dist/gryaznova",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": ["zone.js"],
+            "polyfills": [
+              "zone.js"
+            ],
             "tsConfig": "tsconfig.json"
-          }
+          },
+          "configurations": {
+            "production": {
+              "optimization": true,
+              "sourceMap": false
+            },
+            "development": {
+              "optimization": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular/build:dev-server",
-          "options": {
-            "buildTarget": "helloapp:build"
-          }
+          "configurations": {
+            "production": {
+              "buildTarget": "helloapp:build:production"
+            },
+            "development": {
+              "buildTarget": "helloapp:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
         }
       }
     }
