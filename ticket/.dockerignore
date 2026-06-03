@@ -1,0 +1,8 @@
+.git
+.github
+.gocache
+bin
+tmp
+coverage.out
+*.test
+.env

@@ -1,0 +1,39 @@
+{
+  "title": "Warehouse Services",
+  "uid": "warehouse-main",
+  "schemaVersion": 38,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "HTTP Requests Total",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(http_requests_received_total)", "legendFormat": "Total"}],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Request Rate (req/s) by service",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"expr": "rate(http_requests_received_total[1m])", "legendFormat": "{{job}}"}],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Request Duration p99 (s)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [{"expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))", "legendFormat": "{{job}} p99"}],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 4, "type": "stat", "title": "HTTP 5xx Errors",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(http_requests_received_total{code=~\"5..\"})", "legendFormat": "Errors"}],
+      "datasource": "Prometheus",
+      "options": {"colorMode": "background", "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "RabbitMQ Messages Published",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [{"expr": "rate(rabbitmq_channel_messages_published_total[1m])", "legendFormat": "published/s"}],
+      "datasource": "Prometheus"
+    }
+  ]
+}
