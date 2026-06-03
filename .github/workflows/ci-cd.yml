@@ -78,6 +78,16 @@ jobs:
         working-directory: frontend
       - run: npm run build -- --configuration production
         working-directory: frontend
+  build-ticket:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore ticket/Ticket.csproj
+      - run: dotnet build ticket/Ticket.csproj -c Release --no-restore
+      - run: dotnet publish ticket/Ticket.csproj -c Release -o /tmp/ticket
 
   # ─── DOCKER BUILD & PUSH (только на push в main) ─────────────
   docker-push:
@@ -88,6 +98,7 @@ jobs:
       - build-return-service
       - build-rashodniki-service
       - build-frontend
+      - build-ticket
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     permissions:
@@ -147,6 +158,13 @@ jobs:
           context: ./frontend
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+
+      - name: Build & push ticket
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ticket
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ticket:latest
 
   # ─── DEPLOY (на push в main, после docker-push) ───────────────
   deploy:
