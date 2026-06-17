@@ -18,7 +18,7 @@ import (
 func TestRouterCreateAndChooseProblem(t *testing.T) {
 	repo := newRouterMemoryRepo()
 	svc := service.NewTicketService(repo, serviceProducer{}, nil, zerolog.Nop())
-	router := NewRouter(svc, metrics.New("ticket_service_test"), zerolog.Nop())
+	router := NewRouter(svc, metrics.New("ticket_service_test"), zerolog.Nop(), "http://users-service:8080")
 
 	body := bytes.NewBufferString(`{"title":"problem","description":"details"}`)
 	req := httptest.NewRequest(http.MethodPost, "/tickets/", body)
@@ -47,7 +47,7 @@ func TestRouterCreateAndChooseProblem(t *testing.T) {
 func TestRouterServesSwagger(t *testing.T) {
 	repo := newRouterMemoryRepo()
 	svc := service.NewTicketService(repo, serviceProducer{}, nil, zerolog.Nop())
-	router := NewRouter(svc, metrics.New("ticket_service_test"), zerolog.Nop())
+	router := NewRouter(svc, metrics.New("ticket_service_test"), zerolog.Nop(), "http://users-service:8080")
 
 	req := httptest.NewRequest(http.MethodGet, "/swagger/openapi.yaml", nil)
 	rec := httptest.NewRecorder()

@@ -89,7 +89,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	ticketService := service.NewTicketService(repo, producer, m, a.logger)
-	router := transporthttp.NewRouter(ticketService, m, a.logger)
+	router := transporthttp.NewRouter(ticketService, m, a.logger, a.cfg.AuthServiceURL)
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", a.cfg.Host, a.cfg.Port),

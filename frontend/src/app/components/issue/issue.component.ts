@@ -1,7 +1,8 @@
 import { Component, ChangeDetectorRef, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-issue',
@@ -117,9 +118,18 @@ export class IssueComponent implements OnInit {
   issueMessage = '';
   isIssueError = false;
 
-  constructor(private http: HttpClient, private cdr: ChangeDetectorRef) {}
+  constructor(
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef,
+    private authService: AuthService
+  ) {}
+
+  private authHeaders(): { headers: HttpHeaders } {
+    return { headers: new HttpHeaders({ 'Authorization': this.authService.getAuthHeader() }) };
+  }
 
   ngOnInit() {
+    // GET /api/rashodniki — публичный, заголовок не нужен
     this.http.get<any[]>('/api/rashodniki').subscribe({
       next: (data) => { this.supplies = data; this.cdr.detectChanges(); },
       error: () => {}
@@ -133,11 +143,13 @@ export class IssueComponent implements OnInit {
     this.product = null;
     this.issueMessage = '';
 
-    this.http.get<any>(`/api/issuance/search?searchType=${this.searchType}&searchValue=${encodeURIComponent(this.searchValue)}`)
-      .subscribe({
-        next: (data) => { this.product = data; this.isSearching = false; this.cdr.detectChanges(); },
-        error: () => { this.searchError = '❌ Товар не найден'; this.isSearching = false; this.cdr.detectChanges(); }
-      });
+    this.http.get<any>(
+      `/api/issuance/search?searchType=${this.searchType}&searchValue=${encodeURIComponent(this.searchValue)}`,
+      this.authHeaders()
+    ).subscribe({
+      next: (data) => { this.product = data; this.isSearching = false; this.cdr.detectChanges(); },
+      error: () => { this.searchError = '❌ Товар не найден'; this.isSearching = false; this.cdr.detectChanges(); }
+    });
   }
 
   issue() {
@@ -148,12 +160,11 @@ export class IssueComponent implements OnInit {
     if (this.weightIssued) body.weightIssued = this.weightIssued;
     if (this.packageType) body.packageType = this.packageType;
 
-    this.http.post<any>('/api/issuance/issue', body).subscribe({
+    this.http.post<any>('/api/issuance/issue', body, this.authHeaders()).subscribe({
       next: (res) => {
         this.issueMessage = `✅ ${res.message}`;
         this.isIssueError = false;
         this.product.issuedDate = new Date().toISOString();
-        // Обновляем остатки локально
         if (this.packageType) {
           const s = this.supplies.find(x => x.packageType === this.packageType);
           if (s && s.count > 0) s.count--;

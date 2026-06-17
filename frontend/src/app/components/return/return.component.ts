@@ -1,7 +1,8 @@
 import { Component, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-return',
@@ -85,7 +86,15 @@ export class ReturnComponent {
   daysLeft: number | null = null;
   history: any[] = [];
 
-  constructor(private http: HttpClient, private cdr: ChangeDetectorRef) {}
+  constructor(
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef,
+    private authService: AuthService
+  ) {}
+
+  private authHeaders(): { headers: HttpHeaders } {
+    return { headers: new HttpHeaders({ 'Authorization': this.authService.getAuthHeader() }) };
+  }
 
   isFormValid() {
     return !!(this.barcode.trim() && this.cellLocation.trim() && this.issuedDate);
@@ -101,7 +110,7 @@ export class ReturnComponent {
       issuedDate: new Date(this.issuedDate).toISOString()
     };
 
-    this.http.post<any>('/api/return', body).subscribe({
+    this.http.post<any>('/api/return', body, this.authHeaders()).subscribe({
       next: (res) => {
         this.resultMessage = res.message;
         this.resultStatus = res.status;
@@ -120,7 +129,7 @@ export class ReturnComponent {
   }
 
   loadHistory() {
-    this.http.get<any[]>(`/api/return/${encodeURIComponent(this.barcode)}`).subscribe({
+    this.http.get<any[]>(`/api/return/${encodeURIComponent(this.barcode)}`, this.authHeaders()).subscribe({
       next: (data) => { this.history = data; this.cdr.detectChanges(); },
       error: () => { this.history = []; this.cdr.detectChanges(); }
     });

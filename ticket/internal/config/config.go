@@ -22,6 +22,7 @@ type Config struct {
 	DBConnMaxLifetime time.Duration `env:"DB_CONN_MAX_LIFETIME" envDefault:"30m"`
 	RunMigrations     bool          `env:"RUN_MIGRATIONS" envDefault:"true"`
 	MigrationsDir     string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
+	AuthServiceURL    string        `env:"AUTH_SERVICE_URL" envDefault:"http://users-service:8080"`
 
 	RabbitMQEnabled  bool   `env:"RABBITMQ_ENABLED" envDefault:"true"`
 	RabbitMQHost     string `env:"RABBITMQ_HOST" envDefault:"rabbitmq"`

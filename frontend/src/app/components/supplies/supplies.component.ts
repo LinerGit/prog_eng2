@@ -1,7 +1,8 @@
 import { Component, ChangeDetectorRef, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { AuthService } from '../../services/auth.service';
 
 interface SupplyItem {
   packageType: string;
@@ -88,7 +89,11 @@ export class SuppliesComponent implements OnInit {
   message = '';
   isError = false;
 
-  constructor(private http: HttpClient, private cdr: ChangeDetectorRef) {}
+  constructor(
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef,
+    private authService: AuthService
+  ) {}
 
   ngOnInit() { this.loadStock(); }
 
@@ -105,6 +110,10 @@ export class SuppliesComponent implements OnInit {
     });
   }
 
+  private authHeaders(): { headers: HttpHeaders } {
+    return { headers: new HttpHeaders({ 'Authorization': this.authService.getAuthHeader() }) };
+  }
+
   getByGroup(group: string) {
     return this.allItems.filter(i => i.group === group);
   }
@@ -116,7 +125,7 @@ export class SuppliesComponent implements OnInit {
   removeSupply(packageType: string) {
     const count = this.addAmounts[packageType];
     if (!count || count < 1) return;
-    this.http.post<any>('/api/rashodniki/use', { packageType, count }).subscribe({
+    this.http.post<any>('/api/rashodniki/use', { packageType, count }, this.authHeaders()).subscribe({
       next: () => {
         this.stockMap[packageType] = Math.max(0, (this.stockMap[packageType] ?? 0) - count);
         this.addAmounts[packageType] = 0;
@@ -134,7 +143,7 @@ export class SuppliesComponent implements OnInit {
     const count = this.addAmounts[packageType];
     if (!count || count < 1) return;
 
-    this.http.post<any>('/api/rashodniki/add', { packageType, count }).subscribe({
+    this.http.post<any>('/api/rashodniki/add', { packageType, count }, this.authHeaders()).subscribe({
       next: () => {
         this.stockMap[packageType] = (this.stockMap[packageType] ?? 0) + count;
         this.addAmounts[packageType] = 0;
@@ -144,8 +153,8 @@ export class SuppliesComponent implements OnInit {
         this.cdr.detectChanges();
         setTimeout(() => { this.message = ''; this.cdr.detectChanges(); }, 3000);
       },
-      error: () => {
-        this.message = '❌ Ошибка при добавлении';
+      error: (err) => {
+        this.message = `❌ ${err.error?.message || 'Ошибка при добавлении'}`;
         this.isError = true;
         this.cdr.detectChanges();
       }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using AddTovarService.Auth;
 using AddTovarService.Data;
 using AddTovarService.Models;
 using System.Text;
@@ -18,6 +19,7 @@ namespace AddTovarService.Controllers
             _context = context; _httpClientFactory = httpClientFactory; _config = config;
         }
 
+        // Добавление товара — только admin (JWT или Basic)
         [HttpPost("add")]
         public async Task<IActionResult> Add([FromBody] Product product)
         {
@@ -30,21 +32,17 @@ namespace AddTovarService.Controllers
 
             if (authHeader.StartsWith("Bearer "))
             {
-                // Лаба 4: JWT
                 var req = new HttpRequestMessage(HttpMethod.Get,
                     $"{usersServiceUrl}/api/auth/validate-token?requiredRole=admin");
                 req.Headers.Add("Authorization", authHeader);
                 var resp = await client.SendAsync(req);
                 if (!resp.IsSuccessStatusCode)
                     return StatusCode((int)resp.StatusCode, new { message = "Доступ запрещён" });
-
-                var username = System.Security.Claims.ClaimsPrincipal.Current?.Identity?.Name ?? "unknown";
-                return await SaveProduct(product, username);
+                return await SaveProduct(product, "admin");
             }
             else if (authHeader.StartsWith("Basic "))
             {
-                // Лаба 2: Basic Auth (обратная совместимость)
-                var encoded = authHeader.Substring("Basic ".Length).Trim();
+                var encoded = authHeader["Basic ".Length..].Trim();
                 var decoded = Encoding.GetEncoding("iso-8859-1").GetString(Convert.FromBase64String(encoded));
                 var parts = decoded.Split(':');
                 if (parts.Length != 2) return Unauthorized(new { message = "Ошибка авторизации" });
@@ -72,11 +70,16 @@ namespace AddTovarService.Controllers
             return Ok(new { message = "Товар успешно добавлен!", id = product.Id });
         }
 
+        // Поиск — только межсервисный Basic (вызывает vtovar-service)
         [HttpGet("search")]
         public IActionResult Search([FromQuery] string searchType, [FromQuery] string searchValue)
         {
+            if (!ServiceAuthHelper.IsValidServiceRequest(Request, _config))
+                return Unauthorized(new { message = "Межсервисная авторизация обязательна" });
+
             if (string.IsNullOrWhiteSpace(searchType) || searchValue == null)
                 return BadRequest(new { message = "Укажите тип и значение поиска" });
+
             var val = searchValue.ToLower().Trim();
             var query = _context.Products.AsQueryable();
             var product = searchType switch
@@ -90,17 +93,25 @@ namespace AddTovarService.Controllers
             return Ok(product);
         }
 
+        // Получить по ID — только межсервисный Basic (вызывает vtovar-service)
         [HttpGet("{id}")]
         public IActionResult GetById(int id)
         {
+            if (!ServiceAuthHelper.IsValidServiceRequest(Request, _config))
+                return Unauthorized(new { message = "Межсервисная авторизация обязательна" });
+
             var product = _context.Products.FirstOrDefault(p => p.Id == id);
             if (product == null) return NotFound();
             return Ok(product);
         }
 
+        // Зафиксировать выдачу — только межсервисный Basic (вызывает vtovar-service)
         [HttpPut("{id}/issue")]
         public async Task<IActionResult> Issue(int id, [FromBody] IssueRequest req)
         {
+            if (!ServiceAuthHelper.IsValidServiceRequest(Request, _config))
+                return Unauthorized(new { message = "Межсервисная авторизация обязательна" });
+
             var product = _context.Products.FirstOrDefault(p => p.Id == id);
             if (product == null) return NotFound(new { message = "Товар не найден" });
             if (product.IssuedDate != null) return BadRequest(new { message = "Товар уже выдан" });

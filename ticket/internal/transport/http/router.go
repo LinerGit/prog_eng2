@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
-
 	"ticket/internal/model"
 	"ticket/internal/service"
 	ticketswagger "ticket/internal/swagger"
+	mw "ticket/internal/transport/http/middleware"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -39,7 +39,7 @@ type Handler struct {
 	logger  zerolog.Logger
 }
 
-func NewRouter(service TicketService, metrics Metrics, logger zerolog.Logger) http.Handler {
+func NewRouter(service TicketService, metrics Metrics, logger zerolog.Logger, authServiceURL string) http.Handler {
 	h := &Handler{service: service, metrics: metrics, logger: logger}
 
 	r := chi.NewRouter()
@@ -55,6 +55,9 @@ func NewRouter(service TicketService, metrics Metrics, logger zerolog.Logger) ht
 	r.Get("/swagger/openapi.yaml", ticketswagger.SpecHandler)
 
 	r.Route("/tickets", func(r chi.Router) {
+
+		r.Use(mw.Auth(authServiceURL))
+
 		r.Method(http.MethodPost, "/", metrics.Middleware("create_ticket", http.HandlerFunc(h.createTicket)))
 		r.Method(http.MethodGet, "/", metrics.Middleware("get_tickets", http.HandlerFunc(h.getTickets)))
 		r.Method(http.MethodGet, "/{ticketID}", metrics.Middleware("get_ticket", http.HandlerFunc(h.getTicket)))
