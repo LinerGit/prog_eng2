@@ -9,6 +9,18 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
+            "configurations": {
+  "production": {
+    "optimization": true,
+    "extractLicenses": true,
+    "sourceMap": false
+  },
+  "development": {
+    "optimization": false,
+    "sourceMap": true
+  }
+},
+"defaultConfiguration": "production",
             "outputPath": "dist/gryaznova",
             "index": "src/index.html",
             "browser": "src/main.ts",
