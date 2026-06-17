@@ -11,73 +11,408 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/warehouse
 
 jobs:
-  # ─── BUILD & TEST ──────────────────────────────────────────────
+  # ============================================================
+  # BUILD USERS SERVICE
+  # ============================================================
   build-users-service:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
+
       - run: dotnet restore users-service/UsersService.csproj
       - run: dotnet build users-service/UsersService.csproj -c Release --no-restore
       - run: dotnet publish users-service/UsersService.csproj -c Release -o /tmp/users
 
-  build-addtovar-service:
+  docker-users-service:
+    needs: build-users-service
     runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push users-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./users-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-users-service:latest
+
+  deploy-users-service:
+    needs: docker-users-service
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Deploy users-service
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/warehouse
+            docker compose pull users-service
+            docker compose up -d users-service
+            docker image prune -f
+
+  # ============================================================
+  # BUILD ADDTOVAR SERVICE
+  # ============================================================
+  build-addtovar-service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
+
       - run: dotnet restore addtovar-service/AddTovarService.csproj
       - run: dotnet build addtovar-service/AddTovarService.csproj -c Release --no-restore
       - run: dotnet publish addtovar-service/AddTovarService.csproj -c Release -o /tmp/addtovar
 
-  build-vtovar-service:
+  docker-addtovar-service:
+    needs: build-addtovar-service
     runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push addtovar-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./addtovar-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-addtovar-service:latest
+
+  deploy-addtovar-service:
+    needs: docker-addtovar-service
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Deploy addtovar-service
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/warehouse
+            docker compose pull addtovar-service
+            docker compose up -d addtovar-service
+            docker image prune -f
+
+  # ============================================================
+  # BUILD VTOVAR SERVICE
+  # ============================================================
+  build-vtovar-service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
+
       - run: dotnet restore vtovar-service/VTovarService.csproj
       - run: dotnet build vtovar-service/VTovarService.csproj -c Release --no-restore
       - run: dotnet publish vtovar-service/VTovarService.csproj -c Release -o /tmp/vtovar
 
-  build-return-service:
+  docker-vtovar-service:
+    needs: build-vtovar-service
     runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push vtovar-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./vtovar-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-vtovar-service:latest
+
+  deploy-vtovar-service:
+    needs: docker-vtovar-service
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Deploy vtovar-service
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/warehouse
+            docker compose pull vtovar-service
+            docker compose up -d vtovar-service
+            docker image prune -f
+
+  # ============================================================
+  # BUILD RETURN SERVICE
+  # ============================================================
+  build-return-service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
+
       - run: dotnet restore return-service/ReturnService.csproj
       - run: dotnet build return-service/ReturnService.csproj -c Release --no-restore
 
-  build-rashodniki-service:
+  docker-return-service:
+    needs: build-return-service
     runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push return-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./return-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-return-service:latest
+
+  deploy-return-service:
+    needs: docker-return-service
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Deploy return-service
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/warehouse
+            docker compose pull return-service
+            docker compose up -d return-service
+            docker image prune -f
+
+  # ============================================================
+  # BUILD RASHODNIKI SERVICE
+  # ============================================================
+  build-rashodniki-service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
+
       - run: dotnet restore rashodniki-service/RashodnikiService.csproj
       - run: dotnet build rashodniki-service/RashodnikiService.csproj -c Release --no-restore
 
-  build-frontend:
+  docker-rashodniki-service:
+    needs: build-rashodniki-service
     runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push rashodniki-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./rashodniki-service
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-rashodniki-service:latest
+
+  deploy-rashodniki-service:
+    needs: docker-rashodniki-service
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Deploy rashodniki-service
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/warehouse
+            docker compose pull rashodniki-service
+            docker compose up -d rashodniki-service
+            docker image prune -f
+
+  # ============================================================
+  # BUILD FRONTEND
+  # ============================================================
+  build-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
+
       - run: npm ci
         working-directory: frontend
+
       - run: npm run build -- --configuration production
         working-directory: frontend
+
+  docker-frontend:
+    needs: build-frontend
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
+
+  deploy-frontend:
+    needs: docker-frontend
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Deploy frontend
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/warehouse
+            docker compose pull frontend
+            docker compose up -d frontend
+            docker image prune -f
+
+  # ============================================================
+  # BUILD TICKET SERVICE
+  # ============================================================
   build-ticket:
     runs-on: ubuntu-latest
 
@@ -86,7 +421,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: "1.24"
 
       - name: Download dependencies
         working-directory: ticket
@@ -96,90 +431,44 @@ jobs:
         working-directory: ticket
         run: go build -v ./...
 
-  # ─── DOCKER BUILD & PUSH (только на push в main) ─────────────
-  docker-push:
-    needs:
-      - build-users-service
-      - build-addtovar-service
-      - build-vtovar-service
-      - build-return-service
-      - build-rashodniki-service
-      - build-frontend
-      - build-ticket
+  docker-ticket:
+    needs: build-ticket
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
     permissions:
       contents: read
       packages: write
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Build & push users-service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./users-service
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-users-service:latest
-
-      - name: Build & push addtovar-service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./addtovar-service
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-addtovar-service:latest
-
-      - name: Build & push vtovar-service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./vtovar-service
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-vtovar-service:latest
-
-      - name: Build & push return-service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./return-service
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-return-service:latest
-
-      - name: Build & push rashodniki-service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./rashodniki-service
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-rashodniki-service:latest
-
-      - name: Build & push frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest
-
-      - name: Build & push ticket
+      - name: Build & Push ticket
         uses: docker/build-push-action@v5
         with:
           context: ./ticket
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ticket:latest
 
-  # ─── DEPLOY (на push в main, после docker-push) ───────────────
-  deploy:
-    needs: docker-push
+  deploy-ticket:
+    needs: docker-ticket
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    if: github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
     steps:
-      - name: Deploy via SSH
+      - name: Deploy ticket
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -187,6 +476,6 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /opt/warehouse
-            docker-compose pull
-            docker-compose up -d --remove-orphans
+            docker compose pull ticket
+            docker compose up -d ticket
             docker image prune -f
