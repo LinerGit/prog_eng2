@@ -1,0 +1,300 @@
+services:
+
+  # ─── DATABASES ────────────────────────────────────────────────
+  users-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: usersdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - users-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  addtovar-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: addtovardb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - addtovar-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  vtovar-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: vtovardb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - vtovar-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  return-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: returndb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - return-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rashodniki-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: rashodnikidb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - rashodniki-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  postgres:
+    image: postgres:17-alpine
+    container_name: ticket-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ticket
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ticket"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+
+  # ─── БРОКЕР (Лаба 3) ──────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI
+      - "15692:15692"   # Prometheus metrics
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ─── BACKEND SERVICES ─────────────────────────────────────────
+  users-service:
+    build: ./users-service
+    ports:
+      - "8081:8080"
+    depends_on:
+      users-db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=users-db;Port=5432;Database=usersdb;Username=postgres;Password=postgres"
+      Jwt__Secret: "warehouse-secret-key-min-32-chars!!"
+
+  addtovar-service:
+    build: ./addtovar-service
+    ports:
+      - "8082:8080"
+    depends_on:
+      addtovar-db:
+        condition: service_healthy
+      users-service:
+        condition: service_started
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=addtovar-db;Port=5432;Database=addtovardb;Username=postgres;Password=postgres"
+      Services__UsersService: "http://users-service:8080"
+
+  vtovar-service:
+    build: ./vtovar-service
+    ports:
+      - "8083:8080"
+    depends_on:
+      vtovar-db:
+        condition: service_healthy
+      addtovar-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=vtovar-db;Port=5432;Database=vtovardb;Username=postgres;Password=postgres"
+      Services__AddTovarService: "http://addtovar-service:8080"
+      RabbitMQ__Host: "rabbitmq"
+      RabbitMQ__User: "guest"
+      RabbitMQ__Pass: "guest"
+
+  return-service:
+    build: ./return-service
+    ports:
+      - "8085:8080"
+    depends_on:
+      return-db:
+        condition: service_healthy
+      addtovar-service:
+        condition: service_started
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=return-db;Port=5432;Database=returndb;Username=postgres;Password=postgres"
+      Services__AddTovarService: "http://addtovar-service:8080"
+
+  rashodniki-service:
+    build: ./rashodniki-service
+    ports:
+      - "8086:8080"
+    depends_on:
+      rashodniki-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=rashodniki-db;Port=5432;Database=rashodnikidb;Username=postgres;Password=postgres"
+      RabbitMQ__Host: "rabbitmq"
+      RabbitMQ__User: "guest"
+      RabbitMQ__Pass: "guest"
+  ticket-service:
+    build: ./ticket
+    container_name: ticket-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SERVICE_NAME: ticket-service
+      APP_ENV: development
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: 8080
+      DB_DSN: postgres://postgres:postgres@postgres:5432/ticket?sslmode=disable
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_EXCHANGE: warehouse
+      RUN_MIGRATIONS: "true"
+      MIGRATIONS_DIR: /app/migrations
+    ports:
+      - "8087:8080"
+
+  # ─── FRONTEND ─────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - users-service
+      - addtovar-service
+      - vtovar-service
+      - return-service
+
+  # ─── API GATEWAY ──────────────────────────────────────────────
+  api-gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - users-service
+      - addtovar-service
+      - vtovar-service
+      - return-service
+      - rashodniki-service
+      - ticket-service
+      - frontend
+
+  # ─── МОНИТОРИНГ (Лаба 6) ──────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+
+  logstash:
+    image: logstash:8.13.0
+    volumes:
+      - ./monitoring/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    ports:
+      - "5044:5044/udp"
+      - "5044:5044/tcp"
+    depends_on:
+      - elasticsearch
+    environment:
+      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
+
+  kibana:
+    image: kibana:8.13.0
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    depends_on:
+      - elasticsearch
+
+volumes:
+  users-db-data:
+  addtovar-db-data:
+  vtovar-db-data:
+  return-db-data:
+  rashodniki-db-data:
+  postgres-data:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:

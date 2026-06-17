@@ -1,0 +1,39 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'users-service'
+    static_configs:
+      - targets: ['users-service:8080']
+    metrics_path: /metrics
+
+  - job_name: 'addtovar-service'
+    static_configs:
+      - targets: ['addtovar-service:8080']
+    metrics_path: /metrics
+
+  - job_name: 'vtovar-service'
+    static_configs:
+      - targets: ['vtovar-service:8080']
+    metrics_path: /metrics
+
+  - job_name: 'return-service'
+    static_configs:
+      - targets: ['return-service:8080']
+    metrics_path: /metrics
+
+  - job_name: 'rashodniki-service'
+    static_configs:
+      - targets: ['rashodniki-service:8080']
+    metrics_path: /metrics
+
+  - job_name: 'ticket-service'
+    static_configs:
+      - targets: ['ticket-service:8080']
+    metrics_path: /metrics
+
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+    metrics_path: /metrics

@@ -1,0 +1,397 @@
+openapi: 3.0.3
+info:
+  title: Ticket Service API
+  version: 1.0.0
+  description: HTTP API for ticket creation and decision-tree based problem resolution.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Health
+  - name: Observability
+  - name: Tickets
+  - name: Decision Tree
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      operationId: liveness
+      responses:
+        "200":
+          description: Service process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      operationId: readiness
+      responses:
+        "200":
+          description: Service is ready to accept traffic.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "503":
+          description: Service is not ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+  /metrics:
+    get:
+      tags: [Observability]
+      summary: Prometheus metrics
+      operationId: metrics
+      responses:
+        "200":
+          description: Prometheus metrics exposition.
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/openmetrics-text:
+              schema:
+                type: string
+  /tickets/:
+    post:
+      tags: [Tickets]
+      summary: Create ticket
+      operationId: createTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketRequest"
+            examples:
+              default:
+                value:
+                  title: Barcode issue
+                  description: Scanner cannot read product barcode
+      responses:
+        "201":
+          description: Ticket created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [Tickets]
+      summary: List tickets
+      operationId: getTickets
+      responses:
+        "200":
+          description: Ticket list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /tickets/{ticketID}:
+    parameters:
+      - $ref: "#/components/parameters/TicketID"
+    get:
+      tags: [Tickets]
+      summary: Get ticket
+      operationId: getTicket
+      responses:
+        "200":
+          description: Ticket found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [Tickets]
+      summary: Update ticket
+      operationId: updateTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTicketRequest"
+            examples:
+              closeTicket:
+                value:
+                  title: Barcode issue
+                  description: Resolved by manual check
+                  status: closed
+      responses:
+        "200":
+          description: Ticket updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [Tickets]
+      summary: Delete ticket
+      operationId: deleteTicket
+      responses:
+        "204":
+          description: Ticket soft-deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /tickets/{ticketID}/decision:
+    parameters:
+      - $ref: "#/components/parameters/TicketID"
+    get:
+      tags: [Decision Tree]
+      summary: Get current decision step
+      operationId: getCurrentDecision
+      responses:
+        "200":
+          description: Current decision node for ticket.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Decision Tree]
+      summary: Select next problem option
+      operationId: chooseProblem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChooseProblemRequest"
+            examples:
+              productProblem:
+                value:
+                  next_node_id: product_problem
+      responses:
+        "200":
+          description: Decision step selected. If done is true, ticket contains final solution.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /decision-tree/{nodeID}:
+    get:
+      tags: [Decision Tree]
+      summary: Get decision tree node
+      operationId: getDecisionNode
+      parameters:
+        - name: nodeID
+          in: path
+          required: true
+          schema:
+            type: string
+          example: start
+      responses:
+        "200":
+          description: Decision tree node.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /swagger/:
+    get:
+      tags: [Observability]
+      summary: Swagger UI
+      operationId: swaggerUI
+      responses:
+        "200":
+          description: Swagger UI HTML page.
+          content:
+            text/html:
+              schema:
+                type: string
+  /swagger/openapi.yaml:
+    get:
+      tags: [Observability]
+      summary: OpenAPI document
+      operationId: openapiDocument
+      responses:
+        "200":
+          description: OpenAPI YAML document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+components:
+  parameters:
+    TicketID:
+      name: ticketID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 550e8400-e29b-41d4-a716-446655440000
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    Status:
+      type: string
+      enum: [open, in_progress, closed]
+    Ticket:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - status
+        - current_node_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: Barcode issue
+        description:
+          type: string
+          example: Scanner cannot read product barcode
+        status:
+          $ref: "#/components/schemas/Status"
+        current_node_id:
+          type: string
+          example: product_problem
+        solution:
+          type: string
+          example: Check barcode readability and retry scan.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateTicketRequest:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+    UpdateTicketRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+    ChooseProblemRequest:
+      type: object
+      required: [next_node_id]
+      additionalProperties: false
+      properties:
+        next_node_id:
+          type: string
+          example: product_problem
+    DecisionResponse:
+      type: object
+      required: [ticket, node, done]
+      properties:
+        ticket:
+          $ref: "#/components/schemas/Ticket"
+        node:
+          $ref: "#/components/schemas/Node"
+        done:
+          type: boolean
+    Node:
+      type: object
+      required: [id, text]
+      properties:
+        id:
+          type: string
+          example: start
+        text:
+          type: string
+          example: What problem happened?
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/Option"
+        solution:
+          type: string
+    Option:
+      type: object
+      required: [text, next_node_id]
+      properties:
+        text:
+          type: string
+          example: Product problem
+        next_node_id:
+          type: string
+          example: product_problem
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: not found
